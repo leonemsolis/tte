@@ -1,9 +1,11 @@
 [package]
 name = "tte"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Ruslan Yun <leonemsolis@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+crossterm = "0.26.1"
+
