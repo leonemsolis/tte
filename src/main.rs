@@ -1,5 +1,6 @@
 mod document;
 mod editor;
+mod highlight;
 mod row;
 mod terminal;
 

@@ -1,3 +1,4 @@
+use crate::highlight;
 use crate::SearchDirection;
 use std::cmp;
 use crossterm::style::{SetForegroundColor, Color};
@@ -6,6 +7,7 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Default)]
 pub struct Row {
     string: String,
+    highlighting: Vec<highlight::Type>,
     len: usize,
 }
 
@@ -13,6 +15,7 @@ impl From<&str> for Row {
     fn from(slice: &str) -> Self {
         Self {
             string: slice.to_string(),
+            highlighting: Vec::new(),
             len: slice.graphemes(true).count(),
         }
     }
@@ -23,28 +26,33 @@ impl Row {
         let end = cmp::min(self.string.len(), end);
         let start = cmp::min(start, end);
         let mut result = String::new();
-        for grapheme in self.string
+        let mut current_highlighting = &highlight::Type::None;
+        for (index, grapheme) in self.string[..]
             .graphemes(true)
+            .enumerate()
             .skip(start)
             .take(end - start)
         {
             if let Some(c) = grapheme.chars().next() {
+                let highlight_type = self
+                    .highlighting
+                    .get(index)
+                    .unwrap_or(&highlight::Type::None);
+                if highlight_type != current_highlighting {
+                    current_highlighting = highlight_type;
+                    let start_highlighting = 
+                        format!("{}", SetForegroundColor(highlight_type.to_color()));
+                    result.push_str(&start_highlighting);
+                }
                 if c == '\t' {
                     result.push_str(" ");
-                } else if c.is_ascii_digit() {
-                    result.push_str(
-                        &format!(
-                            "{}{}{}",
-                            SetForegroundColor(Color::Rgb { r: 220, g: 163, b: 163 }),
-                            c,
-                            SetForegroundColor(Color::Reset)
-                        )[..]
-                    );
                 } else {
                     result.push(c);
                 }
             }
         }
+        let end_highlight = format!("{}", SetForegroundColor(Color::Reset));
+        result.push_str(&end_highlight[..]);
         result
     }
 
@@ -119,6 +127,7 @@ impl Row {
         Self {
             string: splitted_row,
             len: splitted_length,
+            highlighting: Vec::new(),
         }
     }
 
@@ -163,5 +172,17 @@ impl Row {
             }
         }
         None
+    }
+
+    pub fn highlight(&mut self) {
+        let mut highlighting = Vec::new();
+        for c in self.string.chars() {
+            if c.is_ascii_digit() {
+                highlighting.push(highlight::Type::Number);
+            } else {
+                highlighting.push(highlight::Type::None);
+            }
+        }
+        self.highlighting = highlighting;
     }
 }
