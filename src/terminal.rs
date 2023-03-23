@@ -1,9 +1,9 @@
 use crate::Position;
-
 use std::io::{Write, Error};
 use crossterm::terminal::{enable_raw_mode, Clear, ClearType};
 use crossterm::event::{read, Event, KeyEvent};
 use crossterm::cursor::{MoveTo, Hide, Show};
+use crossterm::style::{SetForegroundColor, SetBackgroundColor, Color};
 
 pub struct Size {
     pub width: u16,
@@ -21,7 +21,7 @@ impl Terminal {
         Ok(Self {
             size: Size {
                 width: size.0,
-                height: size.1,
+                height: size.1.saturating_sub(2),
             }
         })
     }
@@ -64,5 +64,21 @@ impl Terminal {
 
     pub fn clear_current_line() {
         print!("{}", Clear(ClearType::CurrentLine));
+    }
+
+    pub fn set_bg_color(color: Color)  {
+        print!("{}", SetBackgroundColor(color));
+    }
+
+    pub fn reset_bg_color() {
+        print!("{}", SetBackgroundColor(Color::Reset));
+    }
+
+    pub fn set_fg_color(color: Color) {
+        print!("{}", SetForegroundColor(color));
+    }
+
+    pub fn reset_fg_color() {
+        print!("{}", SetForegroundColor(Color::Reset));
     }
 }
