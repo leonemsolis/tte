@@ -13,7 +13,13 @@ const STATUS_BG_COLOR:Color = Color::Rgb { r: 239, g: 239, b: 239 };
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const QUIT_TIMES: u8 = 3;
 
-#[derive(Default)]
+#[derive(PartialEq, Copy, Clone)]
+pub enum SearchDirection {
+    Forward,
+    Backward,
+}
+
+#[derive(Default, Clone, Copy)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -46,7 +52,7 @@ pub struct Editor {
 impl Editor {
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status = String::from("HELP: Ctrl-S = save | Ctrl-Q = quit");
+        let mut initial_status = String::from("HELP: Ctrl-F = find | Ctrl-S = save | Ctrl-Q = quit");
         let document = if let Some(file_name) = args.get(1) {
             let doc = Document::open(file_name);
             if let Ok(doc) = doc {
@@ -106,7 +112,7 @@ impl Editor {
 
     fn save(&mut self) {
         if self.document.file_name.is_none() {
-            let new_name:Option<String> = self.prompt("Save as: ").unwrap_or(None);
+            let new_name:Option<String> = self.prompt("Save as: ", |_, _, _| {}).unwrap_or(None);
             if new_name.is_none() {
                 self.status_message = StatusMessage::from("Save aborted.".to_string());
                 return;
@@ -135,7 +141,8 @@ impl Editor {
                 }
                 self.should_quit = true;
             },
-            KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('s'), ..} => self.save(),
+            KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('s'), .. } => self.save(),
+            KeyEvent { modifiers: KeyModifiers::CONTROL, code: KeyCode::Char('f'), .. } => self.search(),
             KeyEvent { code: KeyCode::Enter, .. } => {
                 self.document.insert(&self.cursor_position, '\n');
                 self.cursor_position = Position{ x: 0, y: self.cursor_position.y + 1 };
@@ -334,12 +341,16 @@ impl Editor {
         }
     }
 
-    fn prompt(&mut self, prompt: &str) -> Result<Option<String>, Error> {
+    fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, Error> 
+    where
+        C: FnMut(&mut Self, KeyEvent, &String)
+    {
         let mut result = String::new();
         loop {
             self.status_message = StatusMessage::from(format!("{}{}", prompt, result));
             self.refresh_screen()?;
-            match Terminal::read_key()? {
+            let key_event = Terminal::read_key()?;
+            match key_event {
                 KeyEvent { modifiers: KeyModifiers::CONTROL, .. } => continue,
                 KeyEvent { code: KeyCode::Enter, .. } => break,
                 KeyEvent { code: KeyCode::Esc, .. } => {
@@ -350,12 +361,53 @@ impl Editor {
                 KeyEvent { code: KeyCode::Char(c), .. } => result.push(c),
                 _ => {}
             }
+            callback(self, key_event, &result);
         }
         self.status_message = StatusMessage::from(String::new());
         if result.is_empty() {
             return Ok(None);
         }
         Ok(Some(result))
+    }
+
+    fn search(&mut self) {
+        let old_position = self.cursor_position.clone();
+        let mut direction = SearchDirection::Forward;
+        let query = self
+            .prompt("Search (ESC to canel, Arrows to navigate): ", 
+            |editor, key_event, query| {
+                let mut moved = false;
+                match key_event {
+                    KeyEvent { code: KeyCode::Right | KeyCode::Down, .. } => {
+                        direction = SearchDirection::Forward;
+                        editor.move_cursor(KeyCode::Right);
+                        moved = true;
+                    },
+                    KeyEvent { code: KeyCode::Left | KeyCode::Up, .. } => {
+                        direction = SearchDirection::Backward;
+                    },
+                    _ => direction = SearchDirection::Forward,
+                }
+
+                if let Some(position) = 
+                    editor
+                        .document
+                        .find(&query, &editor.cursor_position, direction)
+                {
+                    editor.cursor_position = position;
+                    editor.scroll();
+                } else if moved {
+                    editor.move_cursor(KeyCode::Left);
+                } else {
+                    editor.cursor_position = old_position;
+                    editor.scroll();
+                }
+            })
+            .unwrap_or(None);
+        if query.is_none() {
+            self.cursor_position = old_position;
+            self.scroll();
+        }
     }
 }
 

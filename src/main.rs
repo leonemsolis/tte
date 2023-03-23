@@ -6,6 +6,7 @@ mod terminal;
 pub use row::Row;
 pub use document::Document;
 pub use editor::Editor;
+pub use editor::SearchDirection;
 pub use terminal::Terminal;
 pub use editor::Position;
 
