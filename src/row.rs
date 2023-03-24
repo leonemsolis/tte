@@ -1,6 +1,3 @@
-/*
-asddasd
- */
 use crate::highlighting;
 use crate::HighlightingOptions;
 use crate::SearchDirection;
